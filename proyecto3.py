@@ -2,7 +2,7 @@ import dash
 from dash import dcc, html, Input, Output
 import pandas as pd
 import plotly.express as px
-
+import plotly.graph_objs as go
 # Cargar los datos
 file_path = 'LLamados2024.csv'
 data = pd.read_csv(file_path, sep=';')
@@ -75,6 +75,32 @@ app.layout = html.Div([
         ),
         dcc.Graph(id='medicos-bar-chart'),
     ]),
+    
+    
+    html.Div([
+        html.H2("Horas Finalizadas por Tipo de Consulta"),
+        html.Label("Seleccionar Categoría:"),
+        dcc.Dropdown(
+            id='categoria-consulta-dropdown',
+            options=[
+                {'label': 'Todas', 'value': 'todas'},
+                {'label': 'Consultas', 'value': 'Consulta'},
+                {'label': 'Controles', 'value': 'Control'},
+                {'label': 'Otros', 'value': 'Otros'}
+            ],
+            value='todas',
+            clearable=False
+        ),
+        html.Label("Seleccionar Mes:"),
+        dcc.Dropdown(
+            id='mes-consulta-dropdown',
+            options=[{'label': mes, 'value': mes} for mes in data['mes'].dropna().unique()],
+            placeholder="Todos los meses",
+            clearable=True
+        ),
+        dcc.Graph(id='horas-finalizadas-chart')
+    ]),
+
 ])
 
 # Callback para actualizar el gráfico Administrativos v/s Pacientes
@@ -134,6 +160,87 @@ def update_medicos_chart(medico_seleccionado, dado_por_seleccionado, mes_selecci
         title='Promedio de Horas Anuladas por Médico',
         labels={'Medico': 'Médico', 'horas_anuladas': 'Promedio de Horas Anuladas'}
     )
+    return fig
+def categorize_and_group_consulta(tipo):
+    # Mapeo de tipos de consulta a categorías agrupadas
+    consulta_mapping = {
+        # Consultas agrupadas
+        'Consulta sin Costo': 'Consulta sin costo',
+        'Consulta con Costo': 'Consulta con Costo',
+        
+        # Controles agrupados
+        'Control sin Costo': 'Control sin costo',
+        'Control con Costo': 'Control con Costo',
+        'Control postOp sin costo': 'Control sin costo',
+        'Control sin costo': 'Control sin costo',
+        
+        # Otros tipos
+        'Revisión de ex. sin costo': 'Otros sin costo',
+        'Convenio - sin Costo': 'Otros sin costo'
+    }
+    
+    return consulta_mapping.get(tipo, tipo)
+
+
+
+# Callback para el nuevo gráfico de Horas Finalizadas
+@app.callback(
+    Output('horas-finalizadas-chart', 'figure'),
+    [Input('categoria-consulta-dropdown', 'value'),
+     Input('mes-consulta-dropdown', 'value')]
+)
+def update_horas_finalizadas_chart(categoria_seleccionada, mes_seleccionado):
+    # Filtrar datos para estado finalizado
+    df_finalizadas = data[data['estado'] == 'finalizada'].copy()
+    
+    # Aplicar categorización y agrupación
+    df_finalizadas['tipo_agrupado'] = df_finalizadas['tipoconsulta'].apply(categorize_and_group_consulta)
+    
+    # Filtrar por categoría si se selecciona
+    if categoria_seleccionada != 'todas':
+        # Función para mapear categoría seleccionada a tipos
+        categoria_mapping = {
+            'Consulta': ['Consulta sin costo', 'Consulta con Costo'],
+            'Control': ['Control sin costo', 'Control con Costo'],
+            'Otros': ['Otros sin costo']
+        }
+        tipos_permitidos = categoria_mapping.get(categoria_seleccionada, [])
+        df_finalizadas = df_finalizadas[df_finalizadas['tipo_agrupado'].isin(tipos_permitidos)]
+    
+    # Filtrar por mes si se selecciona
+    if mes_seleccionado:
+        df_finalizadas = df_finalizadas[df_finalizadas['mes'] == mes_seleccionado]
+    
+    # Agrupar y contar
+    grouped_data = df_finalizadas.groupby('tipo_agrupado').size()
+    
+    # Separar tipos con costo y sin costo
+    tipos_con_costo = grouped_data[grouped_data.index.str.contains('con Costo')].sort_index()
+    tipos_sin_costo = grouped_data[grouped_data.index.str.contains('sin costo')].sort_index()
+    
+    # Crear figura
+    fig = go.Figure(data=[
+        go.Bar(
+            name='Con Costo', 
+            x=tipos_con_costo.index, 
+            y=tipos_con_costo.values, 
+            marker_color='blue'
+        ),
+        go.Bar(
+            name='Sin Costo', 
+            x=tipos_sin_costo.index, 
+            y=tipos_sin_costo.values, 
+            marker_color='red'
+        )
+    ])
+    
+    fig.update_layout(
+        title='Horas Finalizadas por Tipo de Consulta',
+        xaxis_title='Tipo de Consulta',
+        yaxis_title='Número de Horas',
+        barmode='group'
+    )
+    
     return fig
 
 # Ejecutar la aplicación
