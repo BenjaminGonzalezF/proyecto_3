@@ -110,7 +110,7 @@ app.layout = html.Div([
      Input('cantidad-dropdown', 'value')]
 )
 def update_chart(nombre_seleccionado, cantidad_seleccionada):
-    df_filtrado = grouped_df
+    df_filtrado = grouped_df.sort_values('cantidad_atenciones')  # Ordenar de menor a mayor por defecto
     
     if nombre_seleccionado:
         df_filtrado = df_filtrado[df_filtrado['dadopor'] == nombre_seleccionado]
@@ -127,8 +127,17 @@ def update_chart(nombre_seleccionado, cantidad_seleccionada):
         df_filtrado,
         x='dadopor',
         y='cantidad_atenciones',
-        title='Cantidad Total de Atenciones por Dadopor'
+        title='Cantidad Total de Atenciones por Dadopor (Ordenado de Menor a Mayor)',
+        labels={'dadopor': 'Personal', 'cantidad_atenciones': 'Cantidad de Atenciones'}
     )
+    
+    # Personalizar el layout para mejorar la legibilidad
+    fig.update_layout(
+        xaxis_title='Personal',
+        yaxis_title='Cantidad de Atenciones',
+        xaxis_tickangle=-45  # Rotar etiquetas para mejor legibilidad
+    )
+    
     return fig
 
 # Callback para actualizar el gráfico Médicos v/s Horas Anuladas
@@ -161,26 +170,6 @@ def update_medicos_chart(medico_seleccionado, dado_por_seleccionado, mes_selecci
         labels={'Medico': 'Médico', 'horas_anuladas': 'Promedio de Horas Anuladas'}
     )
     return fig
-def categorize_and_group_consulta(tipo):
-    # Mapeo de tipos de consulta a categorías agrupadas
-    consulta_mapping = {
-        # Consultas agrupadas
-        'Consulta sin Costo': 'Consulta sin costo',
-        'Consulta con Costo': 'Consulta con Costo',
-        
-        # Controles agrupados
-        'Control sin Costo': 'Control sin costo',
-        'Control con Costo': 'Control con Costo',
-        'Control postOp sin costo': 'Control sin costo',
-        'Control sin costo': 'Control sin costo',
-        
-        # Otros tipos
-        'Revisión de ex. sin costo': 'Otros sin costo',
-        'Convenio - sin Costo': 'Otros sin costo'
-    }
-    
-    return consulta_mapping.get(tipo, tipo)
-
 
 
 # Callback para el nuevo gráfico de Horas Finalizadas
